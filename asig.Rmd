@@ -1,0 +1,148 @@
+---
+title: "Cousera Machine learning Peer assignment"
+output: html_document
+---
+##Summary
+This a paper for cousera machine learning assigment.There various model for predicting classe type in an excersie dataset. The forest randoms plot was in this paper to predict the classe type of th excercise.
+**Method**:Data were cleaned,processed, split in **70%** training and **30%** validating dataset, and preprocessed for missing values and near zeros variable. The random forest was for the moldel building.
+**result**: A total number of 13737 observation were bootstrapped 25 repeatition. the mtry **41** was used for the final model with **kappa of 1**.The estimated error was **0.06%** for the final model. The accuracy of the model was **99.99%** and it was able to predict the all the observation in the testing dataset. The **rawtimestap-part1, rollbelt, num-window and pitch_forearm** were the most important varibles in predicting the classe type.
+**Conclusion**: The model was very accurate in predictioin the classe type.
+```{r,message=FALSE}
+#library
+library(ISLR);library(ggplot2); library(caret); library(gridExtra);library(randomForest); set.seed(1234)
+
+```
+
+
+##Data management}
+This section details with the various processes; creating director, loading data, cleaning and preprocess.
+###loading data
+
+loading data
+```{r}
+library(RCurl)
+Predata <- getURL('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',ssl.verifypeer=0L, followlocation=1L)
+data<- read.csv(text=Predata,header=T,sep=',',na.strings=c("NA",""))
+
+```
+
+
+##Data spliting
+ The data was splited in to two 70% training data and 30% validating data.
+ 
+```{r}
+inTrain<- createDataPartition(y=data$classe, p=.70, list=F)
+training<- data[inTrain,]
+validating<- data[-inTrain,]
+
+```
+##Preprocessing
+Data was preprecessed with the aim of reducing missing values and selecting out a near zero variables.
+##Handling the Missing values
+```{r}
+#total of missing value in the training dataset
+sum(is.na(training))
+#variables with the proportion of observation greater than 70%
+sum((colSums(!is.na(training)) >= 0.70*nrow(training)))
+
+obsvar <- c((colSums(!is.na(training)) >= 0.7*nrow(training)))
+
+# selected variables for the the model
+training<-training[,obsvar] #applying the selection to the training data
+
+validating<- validating[,obsvar] #applying the selectiion to the validating data
+
+#Droping of the  first column with the subject ID
+training<- training[,-1]
+validating<- validating[,-1]
+
+```
+##Near Zero Variables
+There were no near zeor variable in the  training data 
+
+```{r}
+nvs <- nearZeroVar(training, saveMetrics=T)
+nvs
+```
+
+##Model Building 
+The random forest method was in the  predictive model in predicting the classe of exercise. To speed up the computation process, a parrallel processess were used . Four(4) parralel processes was selected, with default parameters(ntree, mtry, oob,):
+```{r,message=FALSE}
+#loading the parallel processor 
+# Seting the controltrain for parallel processor
+library(doParallel)
+
+trCtrl <- trainControl(
+allowParallel = TRUE
+)
+#Setting the 4 parallel processors
+
+cl <- makePSOCKcluster(4)
+clusterEvalQ(cl, library(foreach))
+registerDoParallel(cl)
+modelfit<- train(classe~.,data=training, method='rf', trControl = trCtrl)
+
+modelfit
+
+```
+
+##Final model
+```{r}
+modelfit$finalModel
+
+```
+
+Importance Variable for the model
+```{r}
+
+plot(varImp(modelfit), top= 30)
+
+```
+##Prediction 
+
+```{r}
+pred <- predict(modelfit,validating)
+
+```
+
+##Accuracy of Model
+Model accuracy was 99.99% 
+```{r}
+ confusionMatrix(pred,validating$classe)
+
+```
+##section Predicting Test dataset
+loading the dataset
+```{r}
+Pretest <- getURL('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',ssl.verifypeer=0L, followlocation=1L)
+testing<- read.csv(text=Pretest,header=T,sep=',',na.strings=c("NA",""))
+
+#Setting the test dataset structure to  fit the training dataset
+testing<- testing[,obsvar]
+
+#Droping the first column
+testing<- testing[,-1]
+```
+Predicting the testing dataset. The model was able to predict all the 20 set of the observation: from the first observation to the twentynth observation.
+```{r}
+pred2 <- predict(modelfit,testing)
+
+#predicting the testing dataset
+
+pred2
+
+```
+
+Generating the files for the assignment 
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred2)
+```
+
